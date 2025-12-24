@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { Language } from '../types';
 import { ALL_LANGUAGES } from '../constants';
 
+type LanguageWithFlag = Language & { flag: string };
+
 interface LanguageSelectorProps {
   label: string;
-  selectedLanguage: Language & { flag: string };
-  onSelect: (lang: any) => void;
+  selectedLanguage: LanguageWithFlag;
+  onSelect: (lang: LanguageWithFlag) => void;
   themeColor?: string;
 }
 

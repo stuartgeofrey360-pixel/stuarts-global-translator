@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Language, AppMode, StatusMessage, HistoryItem, UserLocation } from './types';
 import { ALL_LANGUAGES } from './constants';
@@ -12,6 +11,8 @@ import AdUnit from './components/AdUnit';
 import { translateText, generateSpeech } from './services/geminiService';
 import { decodeBase64, decodePCMToBuffer } from './utils/audioUtils';
 
+type LanguageWithFlag = Language & { flag: string };
+
 const LOADING_MESSAGES = [
   "Flash mapping...",
   "Neural routing...",
@@ -24,8 +25,8 @@ const ADMOB_SLOT_ID = "7677043562";
 
 const App: React.FC = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>('text-only');
-  const [fromLang, setFromLang] = useState<Language & { flag: string }>(ALL_LANGUAGES.find(l => l.code === 'en')!);
-  const [toLang, setToLang] = useState<Language & { flag: string }>(ALL_LANGUAGES.find(l => l.code === 'it')!); 
+  const [fromLang, setFromLang] = useState<LanguageWithFlag>(ALL_LANGUAGES.find(l => l.code === 'en')!);
+  const [toLang, setToLang] = useState<LanguageWithFlag>(ALL_LANGUAGES.find(l => l.code === 'it')!); 
   const [inputText, setInputText] = useState('');
   const [translationResult, setTranslationResult] = useState<{ text: string } | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -90,30 +91,32 @@ const App: React.FC = () => {
     try {
       const { audioData, sampleRate } = await generateSpeech(text, toLang);
       
-      // Initialize or retrieve the AudioContext
-      let ctx = audioContextRef.current;
-      if (!ctx) {
+      // Strict initialization check
+      let currentCtx = audioContextRef.current;
+      if (!currentCtx) {
         const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
         if (AudioContextClass) {
-          ctx = new AudioContextClass({ sampleRate });
-          audioContextRef.current = ctx;
+          currentCtx = new AudioContextClass({ sampleRate });
+          audioContextRef.current = currentCtx;
         }
       }
       
-      // Strict narrowing using truthiness check on local variable
+      // Capture into local variable for TS narrowing
+      const ctx = currentCtx;
+      
       if (ctx) {
-        // We use non-null assertion on ctx here as the 'if (ctx)' check guarantees its presence for tsc.
-        const buffer = await decodePCMToBuffer(decodeBase64(audioData), ctx!, sampleRate);
+        // ctx is now non-null for this block
+        const buffer = await decodePCMToBuffer(decodeBase64(audioData), ctx, sampleRate);
         
         setIsSynthesizing(false);
         setIsSpeaking(true);
-        const source = ctx!.createBufferSource();
+        const source = ctx.createBufferSource();
         source.buffer = buffer;
-        source.connect(ctx!.destination);
+        source.connect(ctx.destination);
         source.onended = () => setIsSpeaking(false);
         source.start();
       } else {
-        throw new Error("Audio interface unavailable");
+        throw new Error("Audio context initialization failed");
       }
     } catch (err) {
       console.error("Speech Synthesis Error:", err);
