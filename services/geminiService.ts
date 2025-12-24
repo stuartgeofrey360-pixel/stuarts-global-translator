@@ -7,14 +7,22 @@ function getLanguageIdentifier(lang: Language): string {
   return match ? match[1] : lang.name;
 }
 
+function validateKey() {
+  const key = process.env.API_KEY;
+  if (!key || key === 'undefined' || key.length < 10) {
+    throw new Error("API Key missing. Please set VITE_API_KEY in Netlify/Vercel and RE-DEPLOY.");
+  }
+}
+
 export async function translateText(
   text: string,
   fromLang: Language,
   toLang: Language,
   location?: UserLocation
 ): Promise<{ text: string }> {
-  // Ensure we are using the most current key from process.env
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  validateKey();
+  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
   const modelName = 'gemini-3-flash-preview';
 
   const sourceName = getLanguageIdentifier(fromLang);
@@ -45,15 +53,20 @@ export async function translateText(
 
     const rawText = response.text || "";
     try {
-      const json = JSON.parse(rawText);
-      return { text: json.translation || rawText };
+      // Handle cases where model might wrap JSON in markdown blocks
+      const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const json = JSON.parse(cleaned);
+      return { text: json.translation || cleaned };
     } catch (e) {
-      // Fallback if the model didn't provide valid JSON despite the schema
-      return { text: rawText.replace(/^{.*"translation":\s*"/, '').replace(/"}$/, '').trim() || "Translation unavailable" };
+      return { text: rawText.replace(/^{.*"translation":\s*"/, '').replace(/"}$/, '').trim() || "Translation failed to parse." };
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error("Gemini API Error:", err);
-    throw new Error("Linguistic core unreachable. Check API Key configuration.");
+    const msg = err.message || "";
+    if (msg.includes("401")) throw new Error("API Key rejected (Unauthorized).");
+    if (msg.includes("403")) throw new Error("API Key restricted or Quota exceeded.");
+    if (msg.includes("429")) throw new Error("Too many requests. Please wait.");
+    throw new Error("Communication failure. Check your internet or API key.");
   }
 }
 
@@ -62,7 +75,8 @@ export async function translateImage(
   fromLang: Language,
   toLang: Language
 ): Promise<{ text: string }> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  validateKey();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
   const targetName = getLanguageIdentifier(toLang);
   
   try {
@@ -71,17 +85,17 @@ export async function translateImage(
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: `Extract all text and key objects from this image and translate them to ${targetName}. Provide a structured list.` },
+          { text: `Extract and translate all text from this image to ${targetName}. Provide only the translation.` },
         ],
       },
       config: { 
-        systemInstruction: `OCR & Visual Intelligence. Target: ${targetName}.` 
+        systemInstruction: `OCR & Translation Mode. Target: ${targetName}.` 
       },
     });
-    return { text: res.text?.trim() || "No text detected in scan." };
-  } catch (err) {
+    return { text: res.text?.trim() || "No text detected." };
+  } catch (err: any) {
     console.error("Vision Error:", err);
-    throw new Error("Vision hardware link failed.");
+    throw new Error(err.message?.includes("401") ? "Key Invalid" : "Vision hardware link failed.");
   }
 }
 
@@ -89,25 +103,29 @@ export async function generateSpeech(
   text: string,
   toLang: Language
 ): Promise<{ audioData: string; sampleRate: number }> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  validateKey();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
   const targetName = getLanguageIdentifier(toLang);
   
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text: `Read this ${targetName} text naturally: "${text}"` }] }],
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Kore' },
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `Read this ${targetName} text: "${text}"` }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
+          },
         },
       },
-    },
-  });
+    });
 
-  const part = response.candidates?.[0]?.content?.parts?.[0];
-  const audioData = part?.inlineData?.data;
-  if (!audioData) throw new Error("Voice synthesis failure.");
+    const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!audioData) throw new Error("TTS Failure");
 
-  return { audioData, sampleRate: 24000 };
+    return { audioData, sampleRate: 24000 };
+  } catch (err) {
+    throw new Error("Voice synthesis blocked.");
+  }
 }

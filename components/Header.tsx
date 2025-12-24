@@ -1,7 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 
 const Header: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  // Check if API KEY exists in the current build environment
+  const hasKey = !!process.env.API_KEY && process.env.API_KEY !== 'undefined';
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -23,6 +26,11 @@ const Header: React.FC = () => {
           <span className="text-4xl shining-s select-none">S</span>
           <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-gold/30 to-transparent"></div>
         </div>
+        
+        {/* API Key Status Badge */}
+        <div className={`absolute -right-2 -top-1 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white z-20 ${hasKey ? 'bg-amber-400' : 'bg-slate-300'}`}>
+          <i className={`fas ${hasKey ? 'fa-lock' : 'fa-lock-open'} text-[8px] text-white`}></i>
+        </div>
       </div>
 
       {/* Centered Title Section */}
@@ -33,7 +41,7 @@ const Header: React.FC = () => {
         <div className="flex items-center space-x-2 mt-1 opacity-70">
           <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'} shadow-sm`}></div>
           <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
-            {isOnline ? 'System Link Active' : 'Offline Protocol'}
+            {isOnline ? (hasKey ? 'Secure Core Active' : 'Key Required') : 'Offline Protocol'}
           </span>
         </div>
       </div>
