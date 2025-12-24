@@ -90,30 +90,31 @@ const App: React.FC = () => {
     try {
       const { audioData, sampleRate } = await generateSpeech(text, toLang);
       
-      // Standardize AudioContext initialization
-      let ctx = audioContextRef.current;
-      if (!ctx) {
+      // 1. Ensure the AudioContext is initialized
+      if (!audioContextRef.current) {
         const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
         if (AudioContextClass) {
-          ctx = new AudioContextClass({ sampleRate });
-          audioContextRef.current = ctx;
+          audioContextRef.current = new AudioContextClass({ sampleRate });
         }
       }
       
-      // Explicit guard for TypeScript compiler to ensure 'ctx' is not null
-      if (!ctx) {
+      // 2. Narrow using local constant and instanceof
+      const ctx = audioContextRef.current;
+      
+      if (ctx instanceof AudioContext) {
+        // Now 'ctx' is guaranteed to be AudioContext and not null
+        const buffer = await decodePCMToBuffer(decodeBase64(audioData), ctx, sampleRate);
+        
+        setIsSynthesizing(false);
+        setIsSpeaking(true);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.onended = () => setIsSpeaking(false);
+        source.start();
+      } else {
         throw new Error("Audio interface unavailable");
       }
-      
-      const buffer = await decodePCMToBuffer(decodeBase64(audioData), ctx, sampleRate);
-      
-      setIsSynthesizing(false);
-      setIsSpeaking(true);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      source.onended = () => setIsSpeaking(false);
-      source.start();
     } catch (err) {
       console.error("Speech Synthesis Error:", err);
       setIsSynthesizing(false);
