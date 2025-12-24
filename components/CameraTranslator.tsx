@@ -33,7 +33,9 @@ const CameraTranslator: React.FC<CameraTranslatorProps> = ({
           audio: false,
         });
         setStream(mediaStream);
-        if (videoRef.current) videoRef.current.srcObject = mediaStream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
       } catch (err) {
         console.debug("Camera inhib", err);
       }

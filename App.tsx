@@ -24,8 +24,8 @@ const ADMOB_SLOT_ID = "7677043562";
 
 const App: React.FC = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>('text-only');
-  const [fromLang, setFromLang] = useState<any>(ALL_LANGUAGES.find(l => l.code === 'en')!);
-  const [toLang, setToLang] = useState<any>(ALL_LANGUAGES.find(l => l.code === 'it')!); // Default to Italian per user request
+  const [fromLang, setFromLang] = useState<Language & { flag: string }>(ALL_LANGUAGES.find(l => l.code === 'en')!);
+  const [toLang, setToLang] = useState<Language & { flag: string }>(ALL_LANGUAGES.find(l => l.code === 'it')!); 
   const [inputText, setInputText] = useState('');
   const [translationResult, setTranslationResult] = useState<{ text: string } | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -90,26 +90,26 @@ const App: React.FC = () => {
     try {
       const { audioData, sampleRate } = await generateSpeech(text, toLang);
       
-      // 1. Ensure the AudioContext is initialized
-      if (!audioContextRef.current) {
+      // Initialize or retrieve the AudioContext
+      let ctx = audioContextRef.current;
+      if (!ctx) {
         const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
         if (AudioContextClass) {
-          audioContextRef.current = new AudioContextClass({ sampleRate });
+          ctx = new AudioContextClass({ sampleRate });
+          audioContextRef.current = ctx;
         }
       }
       
-      // 2. Narrow using local constant and instanceof
-      const ctx = audioContextRef.current;
-      
-      if (ctx instanceof AudioContext) {
-        // Now 'ctx' is guaranteed to be AudioContext and not null
-        const buffer = await decodePCMToBuffer(decodeBase64(audioData), ctx, sampleRate);
+      // Strict narrowing using truthiness check on local variable
+      if (ctx) {
+        // We use non-null assertion on ctx here as the 'if (ctx)' check guarantees its presence for tsc.
+        const buffer = await decodePCMToBuffer(decodeBase64(audioData), ctx!, sampleRate);
         
         setIsSynthesizing(false);
         setIsSpeaking(true);
-        const source = ctx.createBufferSource();
+        const source = ctx!.createBufferSource();
         source.buffer = buffer;
-        source.connect(ctx.destination);
+        source.connect(ctx!.destination);
         source.onended = () => setIsSpeaking(false);
         source.start();
       } else {
@@ -153,7 +153,8 @@ const App: React.FC = () => {
       if (autoSpeak) handleSpeak(result.text);
 
       setTimeout(() => {
-        document.getElementById('result-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const anchor = document.getElementById('result-anchor');
+        if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 100);
     } catch (e) {
       showStatus("Mapping failed. Retrying...", "error");
