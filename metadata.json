@@ -1,0 +1,10 @@
+{
+  "name": "Global Translator • Explorer Edition",
+  "short_name": "ExplorerTrans",
+  "description": "A premium, blue and white light-themed travel companion featuring real-time voice, text, and visual translation with a shining golden signature.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera",
+    "geolocation"
+  ]
+}

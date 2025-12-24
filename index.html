@@ -1,0 +1,66 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Global Translator • Crystal Edition</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0284C7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6940105229279652" crossorigin="anonymous"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+            --bg-top: #F0F9FF;
+            --bg-bottom: #F0FDF4;
+            --text-main: #0F172A;
+            --gold: #D4AF37;
+        }
+        html { background: var(--bg-top); height: -webkit-fill-available; }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0; padding: 0; color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden; overflow-y: auto;
+            background: var(--bg-top); min-height: 100vh;
+        }
+        .imperial-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: linear-gradient(180deg, var(--bg-top) 0%, #FFFFFF 50%, var(--bg-bottom) 100%); }
+        .glass-panel { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 28px; }
+        .crystal-card { background: #FFFFFF; border: 1px solid rgba(2, 132, 199, 0.08); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); border-radius: 28px; }
+        @keyframes signature-glow { 0%, 100% { filter: drop-shadow(0 0 2px rgba(212, 175, 55, 0.2)); transform: scale(1); } 50% { filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.5)); transform: scale(1.05); } }
+        .shining-s { font-family: 'Times New Roman', serif; font-weight: 900; background: linear-gradient(135deg, #D4AF37 0%, #F1D279 50%, #B8860B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: signature-glow 4s infinite ease-in-out; }
+        .btn-squishy { transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .btn-squishy:active { transform: scale(0.94); }
+        .animate-reveal { animation: reveal-up 0.5s cubic-bezier(0.2, 1, 0.3, 1) forwards; }
+        @keyframes reveal-up { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^8.0.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.0"
+  }
+}
+</script>
+</head>
+<body>
+    <div class="imperial-bg"></div>
+    <div id="root"></div>
+    <!-- Vite will automatically inject the script here during build, 
+         but for local development we point to index.tsx -->
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
