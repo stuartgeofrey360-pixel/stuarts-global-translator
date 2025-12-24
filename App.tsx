@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Language, AppMode, StatusMessage, HistoryItem, UserLocation } from './types';
 import { ALL_LANGUAGES } from './constants';
@@ -25,8 +26,8 @@ const ADMOB_SLOT_ID = "7677043562";
 
 const App: React.FC = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>('text-only');
-  const [fromLang, setFromLang] = useState<LanguageWithFlag>(ALL_LANGUAGES.find(l => l.code === 'en')!);
-  const [toLang, setToLang] = useState<LanguageWithFlag>(ALL_LANGUAGES.find(l => l.code === 'it')!); 
+  const [fromLang, setFromLang] = useState<LanguageWithFlag>(ALL_LANGUAGES.find(l => l.code === 'en') || ALL_LANGUAGES[0]);
+  const [toLang, setToLang] = useState<LanguageWithFlag>(ALL_LANGUAGES.find(l => l.code === 'it') || ALL_LANGUAGES[1]); 
   const [inputText, setInputText] = useState('');
   const [translationResult, setTranslationResult] = useState<{ text: string } | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -61,7 +62,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const saved = localStorage.getItem('global_vault_v7');
-    if (saved) setHistory(JSON.parse(saved));
+    if (saved) {
+      try { setHistory(JSON.parse(saved)); } catch(e) { console.error("History corrupted"); }
+    }
 
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SR) {
@@ -80,7 +83,7 @@ const App: React.FC = () => {
 
   const showStatus = (text: string, type: 'info' | 'success' | 'error') => {
     setStatus({ text, type });
-    setTimeout(() => setStatus(null), 2500);
+    setTimeout(() => setStatus(null), 4000);
   };
 
   const handleSpeak = async (textToSpeak?: string) => {
@@ -91,7 +94,6 @@ const App: React.FC = () => {
     try {
       const { audioData, sampleRate } = await generateSpeech(text, toLang);
       
-      // Strict initialization check
       let currentCtx = audioContextRef.current;
       if (!currentCtx) {
         const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
@@ -101,11 +103,13 @@ const App: React.FC = () => {
         }
       }
       
-      // Capture into local variable for TS narrowing
       const ctx = currentCtx;
-      
       if (ctx) {
-        // ctx is now non-null for this block
+        // ESSENTIAL: Resume context to handle browser auto-play restrictions
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+
         const buffer = await decodePCMToBuffer(decodeBase64(audioData), ctx, sampleRate);
         
         setIsSynthesizing(false);
@@ -116,12 +120,13 @@ const App: React.FC = () => {
         source.onended = () => setIsSpeaking(false);
         source.start();
       } else {
-        throw new Error("Audio context initialization failed");
+        throw new Error("Audio hardware denied.");
       }
     } catch (err) {
       console.error("Speech Synthesis Error:", err);
       setIsSynthesizing(false);
       setIsSpeaking(false);
+      showStatus("Audio hardware error.", "error");
     }
   };
 
@@ -132,18 +137,15 @@ const App: React.FC = () => {
     setIsTranslating(true);
     setTranslationResult(null);
     try {
-      const currentFrom = fromLang;
-      const currentTo = toLang;
-      
-      const result = await translateText(text, currentFrom, currentTo, location || undefined);
+      const result = await translateText(text, fromLang, toLang, location || undefined);
       setTranslationResult(result);
       
       const newItem: HistoryItem = {
         id: Date.now().toString(),
         original: text,
         translated: result.text,
-        fromLang: currentFrom.code.toUpperCase(),
-        toLang: currentTo.code.toUpperCase(),
+        fromLang: fromLang.code.toUpperCase(),
+        toLang: toLang.code.toUpperCase(),
         timestamp: Date.now(),
       };
       
@@ -159,8 +161,8 @@ const App: React.FC = () => {
         const anchor = document.getElementById('result-anchor');
         if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 100);
-    } catch (e) {
-      showStatus("Mapping failed. Retrying...", "error");
+    } catch (e: any) {
+      showStatus(e.message || "Mapping core failed.", "error");
     } finally {
       setIsTranslating(false);
     }
@@ -171,6 +173,8 @@ const App: React.FC = () => {
     else if (recognitionRef.current) {
       recognitionRef.current.lang = fromLang.sttCode;
       recognitionRef.current.start();
+    } else {
+      showStatus("Microphone not supported in this browser.", "info");
     }
   };
 

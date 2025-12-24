@@ -2,10 +2,6 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { Language, UserLocation } from "../types";
 
-/**
- * Extracts the primary name from the language object.
- * e.g., "Español (Spanish)" -> "Spanish"
- */
 function getLanguageIdentifier(lang: Language): string {
   const match = lang.name.match(/\(([^)]+)\)/);
   return match ? match[1] : lang.name;
@@ -17,58 +13,47 @@ export async function translateText(
   toLang: Language,
   location?: UserLocation
 ): Promise<{ text: string }> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Gemini 3 Flash is the fastest model available for real-time translation.
+  // Ensure we are using the most current key from process.env
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const modelName = 'gemini-3-flash-preview';
 
   const sourceName = getLanguageIdentifier(fromLang);
   const targetName = getLanguageIdentifier(toLang);
 
-  const systemInstruction = `CRITICAL TASK: TRANSLATION ENGINE.
-  
-  MAPPING:
-  FROM: ${sourceName}
-  TO: ${targetName}
-  
-  STRICT CONSTRAINTS:
-  1. Output MUST be in ${targetName}.
-  2. No conversational text.
-  3. No preambles or quotes.
-  4. Preserve technical terms, numbers, and proper names.
-  5. If text is already in ${targetName}, return as-is but native-polished.
-  
-  JSON SCHEMA REQUIRED:
-  {"translation": "..."}`;
+  const systemInstruction = `CRITICAL: You are a translation engine.
+  Target Language: ${targetName}.
+  Constraint: Output ONLY the translated text. No explanations. No quotes.
+  Response format: JSON with key "translation".`;
 
   try {
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: `TRANSLATE THIS TEXT FROM ${sourceName.toUpperCase()} TO ${targetName.toUpperCase()} NOW: "${text}"`,
+      contents: `Translate from ${sourceName} to ${targetName}: "${text}"`,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            translation: {
-              type: Type.STRING,
-              description: `Precision translation in ${targetName}.`,
-            },
+            translation: { type: Type.STRING },
           },
           required: ["translation"],
         },
-        // Low temperature for maximum deterministic accuracy
         temperature: 0.1,
       },
     });
 
-    const json = JSON.parse(response.text || '{"translation": ""}');
-    return { 
-      text: json.translation || response.text || "Translation Error"
-    };
+    const rawText = response.text || "";
+    try {
+      const json = JSON.parse(rawText);
+      return { text: json.translation || rawText };
+    } catch (e) {
+      // Fallback if the model didn't provide valid JSON despite the schema
+      return { text: rawText.replace(/^{.*"translation":\s*"/, '').replace(/"}$/, '').trim() || "Translation unavailable" };
+    }
   } catch (err) {
-    console.error("Flash Engine Error:", err);
-    throw new Error("Linguistic core timeout.");
+    console.error("Gemini API Error:", err);
+    throw new Error("Linguistic core unreachable. Check API Key configuration.");
   }
 }
 
@@ -77,34 +62,39 @@ export async function translateImage(
   fromLang: Language,
   toLang: Language
 ): Promise<{ text: string }> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const targetName = getLanguageIdentifier(toLang);
   
-  // Use gemini-3-flash-preview for vision analysis (OCR/Translation) instead of image generation models.
-  return ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: {
-      parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-        { text: `Identify and translate text/objects in this image to ${targetName}. Provide a clean list.` },
-      ],
-    },
-    config: { 
-      systemInstruction: `You are an OCR and translation lens. Target language is ${targetName}.` 
-    },
-  }).then(res => ({ text: res.text?.trim() || "Analysis failed." }));
+  try {
+    const res = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+          { text: `Extract all text and key objects from this image and translate them to ${targetName}. Provide a structured list.` },
+        ],
+      },
+      config: { 
+        systemInstruction: `OCR & Visual Intelligence. Target: ${targetName}.` 
+      },
+    });
+    return { text: res.text?.trim() || "No text detected in scan." };
+  } catch (err) {
+    console.error("Vision Error:", err);
+    throw new Error("Vision hardware link failed.");
+  }
 }
 
 export async function generateSpeech(
   text: string,
   toLang: Language
 ): Promise<{ audioData: string; sampleRate: number }> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const targetName = getLanguageIdentifier(toLang);
   
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text: `Read naturally in ${targetName}: "${text}"` }] }],
+    contents: [{ parts: [{ text: `Read this ${targetName} text naturally: "${text}"` }] }],
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
@@ -117,7 +107,7 @@ export async function generateSpeech(
 
   const part = response.candidates?.[0]?.content?.parts?.[0];
   const audioData = part?.inlineData?.data;
-  if (!audioData) throw new Error("Voice synthesis failed.");
+  if (!audioData) throw new Error("Voice synthesis failure.");
 
   return { audioData, sampleRate: 24000 };
 }
