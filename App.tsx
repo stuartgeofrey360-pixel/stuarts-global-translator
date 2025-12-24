@@ -90,13 +90,21 @@ const App: React.FC = () => {
     try {
       const { audioData, sampleRate } = await generateSpeech(text, toLang);
       
-      // Standardize AudioContext initialization according to best practices and specified sample rate.
-      if (!audioContextRef.current) {
+      // Standardize AudioContext initialization
+      let ctx = audioContextRef.current;
+      if (!ctx) {
         const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-        audioContextRef.current = new AudioContextClass({ sampleRate });
+        if (AudioContextClass) {
+          ctx = new AudioContextClass({ sampleRate });
+          audioContextRef.current = ctx;
+        }
       }
       
-      const ctx = audioContextRef.current;
+      // Explicit guard for TypeScript compiler to ensure 'ctx' is not null
+      if (!ctx) {
+        throw new Error("Audio interface unavailable");
+      }
+      
       const buffer = await decodePCMToBuffer(decodeBase64(audioData), ctx, sampleRate);
       
       setIsSynthesizing(false);
@@ -106,7 +114,8 @@ const App: React.FC = () => {
       source.connect(ctx.destination);
       source.onended = () => setIsSpeaking(false);
       source.start();
-    } catch {
+    } catch (err) {
+      console.error("Speech Synthesis Error:", err);
       setIsSynthesizing(false);
       setIsSpeaking(false);
     }
@@ -119,7 +128,6 @@ const App: React.FC = () => {
     setIsTranslating(true);
     setTranslationResult(null);
     try {
-      // Capture the current target languages at the moment of the request
       const currentFrom = fromLang;
       const currentTo = toLang;
       
@@ -186,7 +194,6 @@ const App: React.FC = () => {
       <main className="px-6 flex-1 pt-6 pb-32">
         {currentMode === 'text-only' && (
             <div className="flex flex-col space-y-8 animate-reveal">
-                {/* Simplified Multi-Language Selector */}
                 <div className="flex items-center space-x-2">
                     <LanguageSelector label="FROM" selectedLanguage={fromLang} onSelect={setFromLang} />
                     <button 
